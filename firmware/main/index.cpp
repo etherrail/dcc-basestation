@@ -11,12 +11,16 @@ extern "C" {
 
 #include "network.cpp"
 #include "identifier.cpp"
+#include "discovery.cpp"
 
 void app_main(void) {
 	ESP_ERROR_CHECK(nvs_flash_init());
 
 	char* identifier = Identifier::read("etherrail-dcc-basestation");
-	ESP_LOGI(TAG, "Identifier: %s", identifier);
+	ESP_LOGI(TAG, "identifier: %s", identifier);
 
 	network.begin();
+
+	Discovery discovery(identifier);
+	discovery.sendRequest();
 }
