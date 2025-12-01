@@ -22,5 +22,6 @@ void app_main(void) {
 	network.begin();
 
 	Discovery discovery(identifier);
-	discovery.sendRequest();
+	ip4_addr_t directorAddress = discovery.find();
+	ESP_LOGI(TAG, "director: %s", inet_ntoa(directorAddress));
 }
