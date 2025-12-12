@@ -141,7 +141,7 @@ void writePacket(DCCPacket packet) {
 
 
 void loop() {
-	DCCPacket packet = protocol.speed(4, 0.2f, FORWARD);
+	DCCPacket packet = protocol.speed(4, 0.02f, FORWARD);
 	writePacket(packet);
 
 	vTaskDelay(1 / portTICK_PERIOD_MS);
