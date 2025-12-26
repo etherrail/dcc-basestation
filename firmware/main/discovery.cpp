@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string>
 #include <cstring>
 
@@ -6,16 +8,18 @@
 #include "lwip/inet.h"
 #include "lwip/ip_addr.h"
 
+#include "protocol.cpp"
+
 #define DISCOVERY_REQUEST_PORT 142
 #define DISCOVERY_RESPONSE_PORT 143
-#define DISCOVERY_MAX_PACKET_LEN 512
+#define DISCOVERY_MAX_PACKET_LENGTH 512
 
 #define TAG "DISCOVERY"
 
 class Discovery {
 	public:
 		Discovery(char* identifier) {
-			requestPacket = new char[DISCOVERY_MAX_PACKET_LEN];
+			requestPacket = new char[DISCOVERY_MAX_PACKET_LENGTH];
 			sprintf(requestPacket, "PT login\ndevice: %s\n\n", identifier);
 		}
 
@@ -67,19 +71,19 @@ class Discovery {
 				struct sockaddr_in sourceAddr{};
 				socklen_t addrLen = sizeof(sourceAddr);
 
-				char buffer[DISCOVERY_MAX_PACKET_LEN];
+				char* buffer = new char[DISCOVERY_MAX_PACKET_LENGTH];
 
 				int len = recvfrom(
 					this->handle,
 					buffer,
-					sizeof(buffer) - 1,
+					DISCOVERY_MAX_PACKET_LENGTH - 1,
 					0,
 					(struct sockaddr *)&sourceAddr,
 					&addrLen
 				);
 
 				if (len < 0) {
-					ESP_LOGE(TAG, "receiving failed: %d", errno);
+					ESP_LOGE(TAG, "receiving failed, no data: %d", errno);
 
 					continue;
 				}
@@ -167,14 +171,18 @@ class Discovery {
 			return true;
 		}
 
-		bool verifyResponse(char* response) {
-			int responseLength = strlen(responsePacket);
+		bool verifyResponse(const char* response) {
+			ESP_LOGI(TAG, "%d '%s'", strlen(response), response);
 
-			if (strlen(response) < responseLength) {
+			Message message = Message::from(response);
+
+			int expectedResponseLength = strlen(responsePacket);
+
+			if (strlen(response) < expectedResponseLength) {
 				return false;
 			}
 
-			for (int index = 0; index < responseLength; index++) {
+			for (int index = 0; index < expectedResponseLength; index++) {
 				if (response[index] != responsePacket[index]) {
 					return false;
 				}
