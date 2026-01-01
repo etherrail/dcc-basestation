@@ -2,6 +2,8 @@
 
 #include "esp_log.h"
 #include "esp_system.h"
+#include "esp_adc/adc_oneshot.h"
+#include "hal/gpio_types.h"
 #include <stdio.h>
 
 extern "C" {
@@ -37,15 +39,47 @@ void app_main(void) {
 
 	// main track
 	Track track(GPIO_NUM_32, GPIO_NUM_33, GPIO_NUM_1);
-	track.prepareSignalGenerator();
 
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 
+	gpio_num_t faultPin = GPIO_NUM_21;
+
+	gpio_config_t faultPinInput = {};
+	faultPinInput.pin_bit_mask = 1ULL << faultPin;
+	faultPinInput.mode = GPIO_MODE_INPUT;
+	faultPinInput.pull_up_en = GPIO_PULLUP_ENABLE;
+	faultPinInput.pull_down_en = GPIO_PULLDOWN_DISABLE;
+	faultPinInput.intr_type = GPIO_INTR_DISABLE;
+
+	gpio_config(&faultPinInput);
+
+	adc_oneshot_unit_handle_t currentSensingHandle;
+	auto currentSensingUnit = ADC_UNIT_1;
+	auto currentSensingChannel = ADC_CHANNEL_6;
+
+	adc_oneshot_unit_init_cfg_t currentConfiguration = {};
+	currentConfiguration.unit_id = currentSensingUnit;
+
+	adc_oneshot_new_unit(&currentConfiguration, &currentSensingHandle);
+
+	adc_oneshot_chan_cfg_t oneshotConfiguration = {};
+	oneshotConfiguration.atten = ADC_ATTEN_DB_12; // 0–3.3V
+	oneshotConfiguration.bitwidth = ADC_BITWIDTH_12; // 0–4095
+
+	adc_oneshot_config_channel(currentSensingHandle, currentSensingChannel, &oneshotConfiguration);
+
+	int currentSense;
+
+	track.prepareSignalGenerator();
+
 	while (1) {
-		DCCPacket packet = protocol.speed(4, 0.02f, FORWARD);
+		DCCPacket packet = protocol.speed(3, 0.5f, FORWARD);
 		track.writePacket(packet);
 
-		ESP_LOGI(TAG, "wrote packet");
+		int level = gpio_get_level(faultPin);
+		adc_oneshot_read(currentSensingHandle, currentSensingChannel, &currentSense);
+
+		ESP_LOGI(TAG, "wrote packet %d / %d", level, currentSense);
 	}
 
 	/// network.begin();

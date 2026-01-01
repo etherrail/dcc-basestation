@@ -136,6 +136,7 @@ class Track {
 
 			rmt_transmit_config_t configuration = {};
 			configuration.loop_count = 0;
+			configuration.flags.eot_level = 0;
 
 			rmt_transmit(
 				generatorChannel,

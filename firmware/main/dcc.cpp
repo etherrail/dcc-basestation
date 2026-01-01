@@ -14,6 +14,11 @@ typedef enum {
 	REVERSE
 } Direction;
 
+#define BIN8_FMT "%c%c%c%c%c%c%c%c"
+#define BIN8_ARG(x) \
+	((x)&0x80?'1':'0'), ((x)&0x40?'1':'0'), ((x)&0x20?'1':'0'), ((x)&0x10?'1':'0'), \
+	((x)&0x08?'1':'0'), ((x)&0x04?'1':'0'), ((x)&0x02?'1':'0'), ((x)&0x01?'1':'0')
+
 class DCCProtocol {
 	public:
 		DCCProtocol(
@@ -41,7 +46,7 @@ class DCCProtocol {
 				speed = 1.0f;
 			}
 
-			return this->rawSpeed(address, 2 + (int)(speed * 126), direction);
+			return this->rawSpeed(address, 2 + (int)(speed * 125), direction);
 		};
 
 	private:
@@ -51,54 +56,55 @@ class DCCProtocol {
 		DCCPacket rawSpeed(uint8_t address, uint8_t speed, Direction direction) {
 			DCCPacket packet;
 
-			ESP_LOGI(TAG, "%d speed = %d", address, speed);
+			const uint8_t addressByte = address;
+			const uint8_t instructionByte = 0x3F;
 
-			// 01 = 28-step control
-			uint8_t instruction = 0b01000000;
+			uint8_t dataByte = (speed & 0x7F);
 
-			// set direction bit
 			if (direction == FORWARD) {
-				instruction |= 0b00100000;
+				dataByte |= 0x80; // direction in bit7
 			}
 
-			// lower 5 bits = speed step
-			instruction |= (speed & 0x1F);
+			const uint8_t signature = addressByte ^ instructionByte ^ dataByte;
 
-			// XOR checksum
-			uint8_t xor_byte = address ^ instruction;
+			const int bitCount = startBitLength + 4 * 9 + 1;
+			packet.bits = new uint8_t[bitCount];
+			packet.length = bitCount;
 
-			// Calculate total bit count: preamble (14) + (3 bytes × 9 bits) + final end bit
-			const int total_bits = startBitLength + 3 * 9 + 1;
-			packet.bits = new uint8_t[total_bits];
-			packet.length = total_bits;
+			int bitIndex = 0;
 
-			int i = 0;
-
-			// start bits
+			// preamble
 			for (int j = 0; j < startBitLength; j++) {
-				packet.bits[i++] = 1;
+				packet.bits[bitIndex++] = 1;
 			}
 
-			// address
-			packet.bits[i++] = 0;
-			for (int bit = 7; bit >= 0; bit--) {
-				packet.bits[i++] = (address >> bit) & 1;
-			}
+			// write bits
+			auto push = [&](uint8_t b) {
+				packet.bits[bitIndex++] = 0;
 
-			// instruction
-			packet.bits[i++] = 0;
-			for (int bit = 7; bit >= 0; bit--) {
-				packet.bits[i++] = (instruction >> bit) & 1;
-			}
+				for (int bit = 7; bit >= 0; bit--) {
+					packet.bits[bitIndex++] = (b >> bit) & 1;
+				}
+			};
 
-			// verification byte
-			packet.bits[i++] = 0;
-			for (int bit = 7; bit >= 0; bit--) {
-				packet.bits[i++] = (xor_byte >> bit) & 1;
-			}
+			push(addressByte);
+			push(instructionByte);
+			push(dataByte);
+			push(signature);
 
 			// end bit
-			packet.bits[i++] = 1;
+			packet.bits[bitIndex++] = 1;
+
+			ESP_LOGI(
+				TAG,
+				"%d speed = %d, adr=" BIN8_FMT " ins=" BIN8_FMT " data=" BIN8_FMT " sig=" BIN8_FMT,
+				address,
+				speed,
+				BIN8_ARG(addressByte),
+				BIN8_ARG(instructionByte),
+				BIN8_ARG(dataByte),
+				BIN8_ARG(signature)
+			);
 
 			return packet;
 		};
