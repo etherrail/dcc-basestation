@@ -72,14 +72,25 @@ void app_main(void) {
 
 	track.prepareSignalGenerator();
 
+	int frame = 0;
+
 	while (1) {
-		DCCPacket packet = protocol.speed(3, 0.5f, FORWARD);
-		track.writePacket(packet);
+		// DCCPacket packet = protocol.speed(3, 0.5f, FORWARD);
+		// track.writePacket(packet);
 
 		int level = gpio_get_level(faultPin);
 		adc_oneshot_read(currentSensingHandle, currentSensingChannel, &currentSense);
 
 		ESP_LOGI(TAG, "wrote packet %d / %d", level, currentSense);
+
+		frame++;
+
+		DCCPacket functions = protocol.function01234(3, frame > 50 ? false : true, false, false, false, false);
+		track.writePacket(functions);
+
+		if (frame == 100) {
+			frame = 0;
+		}
 	}
 
 	/// network.begin();
